@@ -4,9 +4,16 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pathlib import Path
 from datetime import datetime
-import sqlite3, base64, uuid, io, csv, json
+from zoneinfo import ZoneInfo
+import os, sqlite3, base64, uuid, io, csv, json
 import numpy as np
 import cv2
+
+try:
+    from supabase import create_client, Client
+except Exception:
+    create_client = None
+    Client = None
 
 BASE = Path(__file__).resolve().parent
 DATA = BASE / "data"
@@ -16,12 +23,22 @@ MODELS = BASE / "models"
 DB = DATA / "attendance.db"
 YUNET = MODELS / "face_detection_yunet_2023mar.onnx"
 SFACE = MODELS / "face_recognition_sface_2021dec.onnx"
+IST = ZoneInfo("Asia/Kolkata")
 
 for p in [DATA, WORKER_PHOTOS, ATT_PHOTOS, MODELS]:
     p.mkdir(parents=True, exist_ok=True)
 
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+USE_SUPABASE = bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY and create_client)
+supabase: Client | None = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) if USE_SUPABASE else None
+
 app = FastAPI(title="Worker Photo Attendance")
 app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
+
+
+def now_ist():
+    return datetime.now(IST)
 
 
 def conn():
@@ -30,7 +47,7 @@ def conn():
     return c
 
 
-def init_db():
+def init_local_db():
     c = conn()
     c.executescript("""
     CREATE TABLE IF NOT EXISTS workers (
@@ -57,7 +74,9 @@ def init_db():
     """)
     c.commit(); c.close()
 
-init_db()
+if not USE_SUPABASE:
+    init_local_db()
+
 
 class WorkerIn(BaseModel):
     worker_code: str
@@ -86,10 +105,40 @@ def decode_photo(data_url: str):
         raise HTTPException(400, "फोटो पढ़ी नहीं जा सकी।")
 
 
-def save_bytes(data: bytes, folder: Path, stem: str):
+def save_local_bytes(data: bytes, folder: Path, stem: str):
     path = folder / f"{stem}.jpg"
     path.write_bytes(data)
     return str(path.relative_to(BASE))
+
+
+def ensure_buckets():
+    if not USE_SUPABASE:
+        return
+    # Best-effort bucket creation. If already present, Supabase returns an error which we ignore.
+    for bucket in ("worker-photos", "attendance-photos"):
+        try:
+            supabase.storage.create_bucket(bucket, options={"public": False})
+        except Exception:
+            pass
+
+ensure_buckets()
+
+
+def save_photo(data: bytes, kind: str, stem: str):
+    if not USE_SUPABASE:
+        folder = WORKER_PHOTOS if kind == "worker" else ATT_PHOTOS
+        return save_local_bytes(data, folder, stem)
+    bucket = "worker-photos" if kind == "worker" else "attendance-photos"
+    object_path = f"{now_ist().strftime('%Y/%m')}/{stem}.jpg"
+    try:
+        supabase.storage.from_(bucket).upload(
+            object_path,
+            data,
+            file_options={"content-type": "image/jpeg", "upsert": "false"},
+        )
+        return f"{bucket}/{object_path}"
+    except Exception as e:
+        raise HTTPException(500, f"फोटो cloud storage में save नहीं हो सकी: {str(e)[:180]}")
 
 
 def face_models_ready():
@@ -106,7 +155,6 @@ def get_embedding(img):
     _, faces = detector.detect(img)
     if faces is None or len(faces) == 0:
         return None
-    # use largest detected face
     face = max(faces, key=lambda f: f[2] * f[3])
     aligned = recognizer.alignCrop(img, face)
     feat = recognizer.feature(aligned).flatten().astype(float)
@@ -118,25 +166,44 @@ def cosine(a, b):
     d = np.linalg.norm(a) * np.linalg.norm(b)
     return float(np.dot(a, b) / d) if d else -1.0
 
+
+def sb_data(resp):
+    return getattr(resp, "data", None) or []
+
+
 @app.get("/")
 def home():
     return FileResponse(BASE / "static" / "index.html")
 
+
 @app.get("/api/status")
 def status():
+    today = now_ist().strftime("%Y-%m-%d")
+    if USE_SUPABASE:
+        try:
+            workers = sb_data(supabase.table("workers").select("id").execute())
+            present = sb_data(supabase.table("attendance").select("id").eq("attendance_date", today).execute())
+            return {"workers": len(workers), "present_today": len(present), "face_recognition_ready": face_models_ready(), "storage": "supabase"}
+        except Exception as e:
+            raise HTTPException(500, f"Supabase database error: {str(e)[:180]}")
     c = conn()
     total = c.execute("SELECT COUNT(*) n FROM workers").fetchone()["n"]
-    today = datetime.now().strftime("%Y-%m-%d")
     present = c.execute("SELECT COUNT(*) n FROM attendance WHERE attendance_date=?", (today,)).fetchone()["n"]
     c.close()
-    return {"workers": total, "present_today": present, "face_recognition_ready": face_models_ready()}
+    return {"workers": total, "present_today": present, "face_recognition_ready": face_models_ready(), "storage": "local"}
+
 
 @app.get("/api/workers")
 def workers():
-    c = conn()
-    rows = c.execute("SELECT id, worker_code, name, department, created_at FROM workers ORDER BY name").fetchall()
-    c.close()
+    if USE_SUPABASE:
+        try:
+            rows = sb_data(supabase.table("workers").select("id,worker_code,name,department,created_at").order("name").execute())
+            return rows
+        except Exception as e:
+            raise HTTPException(500, f"Supabase database error: {str(e)[:180]}")
+    c = conn(); rows = c.execute("SELECT id, worker_code, name, department, created_at FROM workers ORDER BY name").fetchall(); c.close()
     return [dict(r) for r in rows]
+
 
 @app.post("/api/workers")
 def add_worker(payload: WorkerIn):
@@ -145,27 +212,63 @@ def add_worker(payload: WorkerIn):
         raise HTTPException(400, "नाम और Worker ID जरूरी हैं।")
     data, img = decode_photo(payload.photo)
     embedding = get_embedding(img)
-    photo_rel = save_bytes(data, WORKER_PHOTOS, f"{code}_{uuid.uuid4().hex[:8]}")
+    photo_rel = save_photo(data, "worker", f"{code}_{uuid.uuid4().hex[:8]}")
+    created = now_ist().isoformat(timespec='seconds')
+    if USE_SUPABASE:
+        try:
+            row = {
+                "worker_code": code, "name": name, "department": payload.department.strip(),
+                "photo_path": photo_rel, "embedding": embedding.tolist() if embedding is not None else None,
+                "created_at": created,
+            }
+            inserted = sb_data(supabase.table("workers").insert(row).execute())
+            return {"ok": True, "id": inserted[0]["id"] if inserted else None, "face_saved": embedding is not None}
+        except Exception as e:
+            msg = str(e)
+            if "duplicate" in msg.lower() or "23505" in msg:
+                raise HTTPException(409, "यह Worker ID पहले से मौजूद है।")
+            raise HTTPException(500, f"Worker save नहीं हुआ: {msg[:180]}")
     try:
         c = conn()
         c.execute("INSERT INTO workers(worker_code,name,department,photo_path,embedding,created_at) VALUES(?,?,?,?,?,?)",
                   (code, name, payload.department.strip(), photo_rel,
-                   json.dumps(embedding.tolist()) if embedding is not None else None,
-                   datetime.now().isoformat(timespec='seconds')))
+                   json.dumps(embedding.tolist()) if embedding is not None else None, created))
         c.commit(); wid = c.execute("SELECT last_insert_rowid()").fetchone()[0]; c.close()
     except sqlite3.IntegrityError:
         raise HTTPException(409, "यह Worker ID पहले से मौजूद है।")
     return {"ok": True, "id": wid, "face_saved": embedding is not None}
 
 
+def get_worker(worker_id: int):
+    if USE_SUPABASE:
+        rows = sb_data(supabase.table("workers").select("*").eq("id", worker_id).limit(1).execute())
+        return rows[0] if rows else None
+    c = conn(); row = c.execute("SELECT * FROM workers WHERE id=?", (worker_id,)).fetchone(); c.close()
+    return dict(row) if row else None
+
+
 def mark_attendance(worker_id: int, photo: str, method: str, confidence=None):
     data, _ = decode_photo(photo)
-    c = conn()
-    w = c.execute("SELECT * FROM workers WHERE id=?", (worker_id,)).fetchone()
+    w = get_worker(worker_id)
     if not w:
-        c.close(); raise HTTPException(404, "Worker नहीं मिला।")
-    now = datetime.now(); d = now.strftime("%Y-%m-%d"); t = now.strftime("%H:%M:%S")
-    rel = save_bytes(data, ATT_PHOTOS, f"{d}_{worker_id}_{uuid.uuid4().hex[:8]}")
+        raise HTTPException(404, "Worker नहीं मिला।")
+    now = now_ist(); d = now.strftime("%Y-%m-%d"); t = now.strftime("%H:%M:%S")
+    rel = save_photo(data, "attendance", f"{d}_{worker_id}_{uuid.uuid4().hex[:8]}")
+    if USE_SUPABASE:
+        try:
+            row = {
+                "worker_id": worker_id, "attendance_date": d, "attendance_time": t,
+                "photo_path": rel, "method": method, "confidence": confidence,
+                "created_at": now.isoformat(timespec='seconds'),
+            }
+            supabase.table("attendance").insert(row).execute()
+        except Exception as e:
+            msg = str(e)
+            if "duplicate" in msg.lower() or "23505" in msg:
+                raise HTTPException(409, f"{w['name']} की आज की attendance पहले ही लग चुकी है।")
+            raise HTTPException(500, f"Attendance save नहीं हुई: {msg[:180]}")
+        return {"ok": True, "worker": w["name"], "date": d, "time": t, "method": method, "confidence": confidence}
+    c = conn()
     try:
         c.execute("INSERT INTO attendance(worker_id,attendance_date,attendance_time,photo_path,method,confidence,created_at) VALUES(?,?,?,?,?,?,?)",
                   (worker_id, d, t, rel, method, confidence, now.isoformat(timespec='seconds')))
@@ -175,9 +278,11 @@ def mark_attendance(worker_id: int, photo: str, method: str, confidence=None):
     c.close()
     return {"ok": True, "worker": w["name"], "date": d, "time": t, "method": method, "confidence": confidence}
 
+
 @app.post("/api/attendance")
 def attendance(payload: AttendanceIn):
     return mark_attendance(payload.worker_id, payload.photo, "manual_photo")
+
 
 @app.post("/api/recognize")
 def recognize(payload: RecognizeIn):
@@ -187,23 +292,44 @@ def recognize(payload: RecognizeIn):
     emb = get_embedding(img)
     if emb is None:
         raise HTTPException(400, "फोटो में साफ चेहरा नहीं मिला।")
-    c = conn(); rows = c.execute("SELECT * FROM workers WHERE embedding IS NOT NULL").fetchall(); c.close()
+    if USE_SUPABASE:
+        rows = sb_data(supabase.table("workers").select("*").not_.is_("embedding", "null").execute())
+    else:
+        c = conn(); rows = [dict(r) for r in c.execute("SELECT * FROM workers WHERE embedding IS NOT NULL").fetchall()]; c.close()
     best = None
     for r in rows:
         try:
-            score = cosine(emb, json.loads(r["embedding"]))
+            stored = r["embedding"] if isinstance(r["embedding"], list) else json.loads(r["embedding"])
+            score = cosine(emb, stored)
         except Exception:
             continue
         if best is None or score > best[0]:
             best = (score, r)
-    # Conservative default for SFace cosine similarity; tune with your own workforce images.
     threshold = 0.45
     if best is None or best[0] < threshold:
         raise HTTPException(404, "चेहरा किसी registered worker से match नहीं हुआ।")
     return mark_attendance(best[1]["id"], payload.photo, "face_recognition", round(best[0], 4))
 
+
 @app.get("/api/attendance")
 def attendance_list(date: str | None = None):
+    if USE_SUPABASE:
+        try:
+            q = supabase.table("attendance").select("id,worker_id,attendance_date,attendance_time,method,confidence,workers(worker_code,name,department)")
+            if date:
+                q = q.eq("attendance_date", date)
+            rows = sb_data(q.order("attendance_date", desc=True).order("attendance_time", desc=True).limit(500).execute())
+            out = []
+            for r in rows:
+                w = r.get("workers") or {}
+                out.append({
+                    "id": r.get("id"), "worker_code": w.get("worker_code"), "name": w.get("name"),
+                    "department": w.get("department"), "attendance_date": r.get("attendance_date"),
+                    "attendance_time": r.get("attendance_time"), "method": r.get("method"), "confidence": r.get("confidence")
+                })
+            return out
+        except Exception as e:
+            raise HTTPException(500, f"Attendance list नहीं मिली: {str(e)[:180]}")
     c = conn()
     if date:
         rows = c.execute("""SELECT a.id,w.worker_code,w.name,w.department,a.attendance_date,a.attendance_time,a.method,a.confidence
@@ -215,13 +341,13 @@ def attendance_list(date: str | None = None):
                           ORDER BY a.attendance_date DESC,a.attendance_time DESC LIMIT 500""").fetchall()
     c.close(); return [dict(r) for r in rows]
 
+
 @app.get("/api/export.csv")
 def export_csv():
-    c = conn(); rows = c.execute("""SELECT w.worker_code,w.name,w.department,a.attendance_date,a.attendance_time,a.method,a.confidence
-                                  FROM attendance a JOIN workers w ON w.id=a.worker_id
-                                  ORDER BY a.attendance_date DESC,a.attendance_time DESC""").fetchall(); c.close()
+    rows = attendance_list(None)
     sio = io.StringIO(); writer = csv.writer(sio)
     writer.writerow(["Worker ID","Name","Department","Date","Time","Method","Confidence"])
-    for r in rows: writer.writerow(list(r))
+    for r in rows:
+        writer.writerow([r.get("worker_code"), r.get("name"), r.get("department"), r.get("attendance_date"), r.get("attendance_time"), r.get("method"), r.get("confidence")])
     data = sio.getvalue().encode('utf-8-sig')
     return StreamingResponse(io.BytesIO(data), media_type="text/csv", headers={"Content-Disposition":"attachment; filename=attendance.csv"})
