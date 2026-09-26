@@ -1,78 +1,82 @@
-# Worker Photo Attendance — Mobile Friendly Version
+# Worker Attendance — Permanent Supabase Version (V2)
 
-यह mobile-first web app worker registration, live camera photo, daily attendance, duplicate रोकना, report और CSV export देता है। OpenCV YuNet + SFace models जोड़ने पर face recognition से worker auto-identify भी किया जा सकता है।
+यह clean version मोबाइल/लैपटॉप दोनों पर चलता है और Render restart/redeploy के बाद भी worker/attendance data Supabase में सुरक्षित रखता है।
 
-## Mobile version में क्या नया है
-- Phone-first responsive UI और bottom navigation
-- बड़े touch buttons और full-screen style camera
-- Front / back camera switch
-- Photo retake preview
-- Mobile attendance cards/report
-- PWA manifest: HTTPS पर browser से Home Screen पर install किया जा सकता है
-- Desktop पर भी वही app चलता है
+## Features
+- Mobile camera + photo attendance
+- Worker registration
+- Same worker की daily duplicate attendance block
+- Daily report + CSV export
+- Supabase Postgres में permanent worker/attendance data
+- Supabase Storage में worker/attendance photos
+- `SUPABASE_SECRET_KEY` support (`SUPABASE_SERVICE_ROLE_KEY` fallback भी है)
+- `/api/status` से साफ पता चलता है कि storage `supabase` है या `local`
+- Optional face recognition models
 
-## 1) Install
-Python 3.10+ install करें। Project folder में:
+## 1) Supabase SQL
+Supabase → SQL Editor में `supabase_schema.sql` पूरा paste करके Run करें।
 
-```bash
+## 2) Render Environment
+Render service → Environment में ये variables रखें:
+
+- `SUPABASE_URL` = Supabase Project URL
+- `SUPABASE_SECRET_KEY` = Supabase Secret key (`sb_secret_...`)
+
+Secret key browser/frontend में कभी न डालें।
+
+## 3) GitHub Upload
+Repository root में ये files/folders होने चाहिए:
+
+- `main.py`
+- `requirements.txt`
+- `static/`
+- `supabase_schema.sql`
+- `render.yaml` (optional)
+
+`static` के अंदर `index.html`, `icon.svg`, `manifest.webmanifest`, `sw.js` सीधे होने चाहिए — `static/static` नहीं।
+
+## 4) Render Commands
+Build command:
+
+```text
 pip install -r requirements.txt
 ```
 
-## 2) Face Recognition models (optional)
+Start command:
+
+```text
+uvicorn main:app --host 0.0.0.0 --port $PORT
+```
+
+## 5) Permanent-storage check
+Deploy के बाद खोलें:
+
+```text
+https://YOUR-APP.onrender.com/api/status
+```
+
+सही setup पर response में यह दिखना चाहिए:
+
+```json
+"storage": "supabase",
+"permanent": true,
+"key_source": "SUPABASE_SECRET_KEY"
+```
+
+अगर `storage: local` दिखे तो Render Environment variables सही नहीं हैं।
+
+## 6) Test
+1. App में नया test worker register करें।
+2. उसकी attendance लगाएँ।
+3. Render में एक बार redeploy करें।
+4. App फिर खोलें। Worker और attendance record मौजूद रहने चाहिए।
+
+## Local laptop use
+Local fallback के लिए:
 
 ```bash
-python download_models.py
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-App restart करें। Models के बिना manual-photo attendance काम करती रहेगी।
-
-## 3) Run
-Windows:
-
-```bat
-run.bat
-```
-
-Mac/Linux:
-
-```bash
-./run.sh
-```
-
-PC पर खोलें: `http://localhost:8000`
-
-## Mobile पर कैसे चलाएँ
-App server phone से reachable होना चाहिए। Production/mobile camera के लिए **HTTPS strongly recommended है** क्योंकि modern mobile browsers non-secure LAN URLs (`http://192.168.x.x:8000`) पर camera permission रोक सकते हैं।
-
-Best setup:
-1. App को HTTPS वाले cloud/VPS/domain पर deploy करें.
-2. Phone में उस HTTPS link को Chrome/Safari में खोलें.
-3. Camera permission Allow करें.
-4. Supported browser में **Add to Home Screen / Install App** करें.
-
-Development testing के लिए USB/HTTPS reverse proxy या local trusted HTTPS setup इस्तेमाल किया जा सकता है।
-
-## Features
-- Worker ID, नाम, department/site registration
-- Registration live photo
-- Attendance live photo evidence
-- एक worker की एक दिन में duplicate attendance blocked
-- Optional automatic face matching
-- आज की present count
-- Date-wise attendance report
-- CSV export
-- SQLite database
-- Installable mobile web app shell (PWA)
-
-## Production में जरूरी अगले upgrades
-- Admin login और supervisor roles
-- HTTPS + encrypted backup
-- GPS/site geofence (worker consent के साथ)
-- Liveness / anti-spoofing
-- IN/OUT, shift, late, half-day, overtime
-- Multi-site support
-- Payroll integration
-- Worker privacy/consent notice और photo retention policy
-
-## Important
-Face recognition को real workforce पर लगाने से पहले camera, lighting और different phones पर threshold test करें। केवल face match पर payroll/disciplinary decision automate न करें; manual review रखें।
+Supabase env variables न हों तो local SQLite fallback चलता है; Render production में permanent data के लिए Supabase variables जरूरी हैं।

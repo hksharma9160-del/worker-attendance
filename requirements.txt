@@ -1,6 +1,6 @@
-fastapi>=0.110
-uvicorn[standard]>=0.29
-numpy>=1.26
-opencv-python-headless>=4.9
-pydantic>=2.6
-supabase>=2.10
+fastapi>=0.110,<1
+uvicorn[standard]>=0.29,<1
+numpy>=1.26,<3
+opencv-python-headless>=4.9,<5
+pydantic>=2.6,<3
+supabase>=2.10,<3
