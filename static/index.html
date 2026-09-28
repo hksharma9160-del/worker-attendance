@@ -9,132 +9,634 @@
 <title>Worker Attendance</title>
 <link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+
 <style>
-:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#0f172a;background:#f1f5f9;--nav:76px;--accent:#2563eb;--green:#16a34a;--muted:#64748b}
-*{box-sizing:border-box}html{background:#0f172a}body{margin:0;background:#f1f5f9;min-height:100dvh;-webkit-tap-highlight-color:transparent}.app{max-width:1024px;margin:auto;min-height:100dvh;padding-bottom:calc(var(--nav) + env(safe-area-inset-bottom) + 18px)}
-header{position:sticky;top:0;z-index:30;background:rgba(15,23,42,.96);color:#fff;padding:calc(12px + env(safe-area-inset-top)) 16px 13px;backdrop-filter:blur(12px);box-shadow:0 2px 14px rgba(15,23,42,.15)}.head{display:flex;align-items:center;justify-content:space-between;gap:12px}.brand{display:flex;gap:10px;align-items:center}.logo{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:#fff1;font-size:23px}.brand h1{font-size:17px;margin:0;font-weight:800}.brand small{display:block;color:#cbd5e1;margin-top:2px}.install{display:none;background:#fff;color:#0f172a;padding:9px 11px;border-radius:11px;font-size:12px}
-main{padding:14px}.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.stat{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:13px 14px;box-shadow:0 2px 10px rgba(15,23,42,.04)}.stat .n{font-size:27px;font-weight:900;line-height:1.1}.stat .t{font-size:12px;color:var(--muted);margin-top:4px}.stat.face{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center}.pill{font-size:12px;font-weight:800;border-radius:999px;padding:6px 9px;background:#f1f5f9}.pill.ok{background:#dcfce7;color:#166534}
-.panel{display:none}.panel.active{display:block}.card{background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:15px;box-shadow:0 3px 14px rgba(15,23,42,.05);margin-bottom:12px}.section-title{margin:0 0 3px;font-size:20px}.section-sub{color:var(--muted);font-size:13px;margin-bottom:14px}.camera-shell{position:relative;background:#020617;border-radius:18px;overflow:hidden;aspect-ratio:3/4;max-height:68dvh}.camera{width:100%;height:100%;object-fit:cover;display:block}.camera.mirror{transform:scaleX(-1)}.camera-placeholder{position:absolute;inset:0;display:grid;place-items:center;color:#cbd5e1;text-align:center;padding:30px;background:radial-gradient(circle at center,#1e293b,#020617)}.camera-placeholder b{display:block;color:#fff;font-size:19px;margin-bottom:6px}.camera-actions{position:absolute;left:0;right:0;bottom:0;padding:14px;display:flex;align-items:center;justify-content:center;gap:16px;background:linear-gradient(transparent,rgba(2,6,23,.8))}.shutter{width:68px;height:68px;border:5px solid #fff;border-radius:50%;background:#fff3;padding:0}.switch{width:46px;height:46px;border-radius:50%;font-size:19px;background:#ffffff24;border:1px solid #ffffff55}.photo-badge{position:absolute;top:12px;right:12px;background:#166534;color:#fff;padding:7px 10px;border-radius:999px;font-size:12px;font-weight:800;display:none}.preview-wrap{display:none;margin-top:10px}.preview-wrap img{width:100%;border-radius:14px;display:block;max-height:300px;object-fit:cover}.preview-actions{display:flex;gap:8px;margin-top:8px}
-label{display:block;font-size:13px;font-weight:800;margin:12px 0 6px}input,select{width:100%;font:inherit;font-size:16px;padding:14px 13px;border:1px solid #cbd5e1;border-radius:13px;background:#fff;color:#0f172a;outline:none}input:focus,select:focus{border-color:#60a5fa;box-shadow:0 0 0 3px #dbeafe}.btn,button{border:0;font:inherit;font-weight:800;cursor:pointer;border-radius:13px;padding:14px 16px;background:var(--accent);color:#fff;min-height:50px}.btn:active,button:active{transform:translateY(1px)}button.secondary{background:#475569}button.success{background:#15803d}button.warn{background:#b45309}button.ghost{background:#e2e8f0;color:#0f172a}.full{width:100%;margin-top:12px}.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}.status{padding:12px 13px;border-radius:13px;margin-top:12px;background:#eff6ff;color:#1e3a8a;font-size:14px;line-height:1.45}.status.ok{background:#ecfdf5;color:#166534}.status.err{background:#fef2f2;color:#991b1b}.hint{font-size:12px;color:var(--muted);line-height:1.5;margin-top:9px}
-.quick-worker{display:flex;align-items:center;gap:10px;padding:10px 0}.avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:#dbeafe;color:#1d4ed8;font-weight:900}.quick-worker .meta{min-width:0;flex:1}.quick-worker b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.quick-worker small{color:var(--muted)}
-.report-top{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}.report-top input{padding:11px}.export{display:inline-flex;text-decoration:none;align-items:center;justify-content:center;background:#0f172a;color:#fff;border-radius:12px;padding:12px 14px;font-weight:800;font-size:13px}.records{display:grid;gap:9px;margin-top:12px}.record{border:1px solid #e2e8f0;border-radius:14px;padding:12px}.record-head{display:flex;justify-content:space-between;gap:10px}.record-name{font-weight:900}.record-time{font-weight:800;color:#166534}.record-meta{color:var(--muted);font-size:12px;margin-top:5px;display:flex;gap:7px;flex-wrap:wrap}.empty{text-align:center;padding:30px 14px;color:var(--muted)}
-.bottom-nav{position:fixed;z-index:40;left:50%;transform:translateX(-50%);bottom:0;width:min(100%,1024px);height:calc(var(--nav) + env(safe-area-inset-bottom));padding:7px 8px env(safe-area-inset-bottom);background:rgba(255,255,255,.97);border-top:1px solid #e2e8f0;display:grid;grid-template-columns:repeat(3,1fr);box-shadow:0 -4px 20px rgba(15,23,42,.08);backdrop-filter:blur(12px)}.navbtn{background:transparent;color:#64748b;padding:5px;min-height:60px;border-radius:13px;font-size:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}.navbtn span{font-size:23px;line-height:1}.navbtn.active{background:#eff6ff;color:#1d4ed8}
-.desktop-row{display:grid;gap:12px}@media(min-width:760px){main{padding:20px}.stats{grid-template-columns:repeat(3,1fr)}.stat.face{grid-column:auto}.desktop-row{grid-template-columns:1.15fr .85fr;align-items:start}.camera-shell{aspect-ratio:4/3}.bottom-nav{position:sticky;bottom:0;border:1px solid #e2e8f0;border-radius:18px 18px 0 0}.record{padding:14px}.install{display:none!important}}
+:root{
+  font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color:#0f172a;
+  background:#f1f5f9;
+  --nav:76px;
+  --accent:#2563eb;
+  --muted:#64748b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#f1f5f9;min-height:100dvh}
+.app{max-width:1024px;margin:auto;padding-bottom:95px}
+
+header{
+  position:sticky;
+  top:0;
+  z-index:30;
+  background:#0f172a;
+  color:#fff;
+  padding:14px 16px;
+}
+.head{display:flex;justify-content:space-between;align-items:center}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{font-size:25px}
+.brand h1{font-size:18px;margin:0}
+.brand small{color:#cbd5e1}
+
+main{padding:14px}
+
+.stats{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-bottom:12px;
+}
+.stat{
+  background:#fff;
+  border:1px solid #e2e8f0;
+  border-radius:16px;
+  padding:14px;
+}
+.stat .n{font-size:28px;font-weight:900}
+.stat .t{font-size:12px;color:var(--muted)}
+.stat.face{
+  grid-column:1/-1;
+  display:flex;
+  justify-content:space-between;
+}
+.pill{
+  background:#f1f5f9;
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:800;
+}
+.pill.ok{background:#dcfce7;color:#166534}
+
+.panel{display:none}
+.panel.active{display:block}
+
+.card{
+  background:#fff;
+  border:1px solid #e2e8f0;
+  border-radius:18px;
+  padding:15px;
+  margin-bottom:12px;
+}
+.section-title{margin:0 0 4px;font-size:20px}
+.section-sub{font-size:13px;color:var(--muted);margin-bottom:12px}
+
+.camera-shell{
+  position:relative;
+  background:#020617;
+  border-radius:18px;
+  overflow:hidden;
+  aspect-ratio:3/4;
+}
+.camera{width:100%;height:100%;object-fit:cover}
+.camera.mirror{transform:scaleX(-1)}
+
+.camera-placeholder{
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  color:#cbd5e1;
+  text-align:center;
+  padding:20px;
+}
+.camera-actions{
+  position:absolute;
+  left:0;right:0;bottom:0;
+  padding:14px;
+  display:flex;
+  justify-content:center;
+  gap:16px;
+}
+.shutter{
+  width:68px;
+  height:68px;
+  border:5px solid #fff;
+  border-radius:50%;
+  background:#ffffff33;
+}
+.switch{
+  width:46px;
+  height:46px;
+  border-radius:50%;
+  background:#ffffff22;
+}
+.photo-badge{
+  display:none;
+  position:absolute;
+  top:12px;
+  right:12px;
+  background:#166534;
+  color:#fff;
+  padding:7px 10px;
+  border-radius:999px;
+}
+.preview-wrap{display:none;margin-top:10px}
+.preview-wrap img{width:100%;border-radius:14px}
+
+label{
+  display:block;
+  font-size:13px;
+  font-weight:800;
+  margin:12px 0 6px;
+}
+input,select{
+  width:100%;
+  padding:14px;
+  border:1px solid #cbd5e1;
+  border-radius:13px;
+  font-size:16px;
+}
+
+button,.btn{
+  border:0;
+  border-radius:13px;
+  padding:14px 16px;
+  font:inherit;
+  font-weight:800;
+  background:var(--accent);
+  color:#fff;
+  cursor:pointer;
+}
+.success{background:#15803d}
+.warn{background:#b45309}
+.ghost{background:#e2e8f0;color:#0f172a}
+.full{width:100%;margin-top:12px}
+
+.mode-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin:10px 0;
+}
+.mode-btn{background:#e2e8f0;color:#0f172a}
+.mode-btn.active{background:#0f172a;color:#fff}
+.hidden{display:none!important}
+
+.status{
+  padding:12px;
+  border-radius:13px;
+  margin-top:12px;
+  background:#eff6ff;
+  color:#1e3a8a;
+}
+.status.ok{background:#ecfdf5;color:#166534}
+.status.err{background:#fef2f2;color:#991b1b}
+
+.quick-worker{padding:10px 0}
+.records{display:grid;gap:9px;margin-top:12px}
+.record{border:1px solid #e2e8f0;border-radius:14px;padding:12px}
+.record-head{display:flex;justify-content:space-between}
+.record-name{font-weight:900}
+.record-time{font-weight:800;color:#166534}
+.record-meta{font-size:12px;color:var(--muted);margin-top:5px}
+
+.bottom-nav{
+  position:fixed;
+  bottom:0;
+  left:50%;
+  transform:translateX(-50%);
+  width:min(100%,1024px);
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  background:#fff;
+  border-top:1px solid #e2e8f0;
+  padding:7px;
+}
+.navbtn{background:transparent;color:#64748b}
+.navbtn.active{background:#eff6ff;color:#1d4ed8}
+
+.desktop-row{display:grid;gap:12px}
+
+@media(min-width:760px){
+  .desktop-row{grid-template-columns:1.15fr .85fr}
+  .camera-shell{aspect-ratio:4/3}
+  .stats{grid-template-columns:repeat(3,1fr)}
+  .stat.face{grid-column:auto}
+}
 </style>
 </head>
+
 <body>
+
 <div class="app">
-<header><div class="head"><div class="brand"><div class="logo">👷</div><div><h1>Worker Attendance</h1><small>मोबाइल फोटो अटेंडेंस</small></div></div><button id="installBtn" class="install">Install App</button></div></header>
+
+<header>
+<div class="head">
+  <div class="brand">
+    <div class="logo">👷</div>
+    <div>
+      <h1>Worker Attendance</h1>
+      <small>Face + Photo + 50m Location</small>
+    </div>
+  </div>
+</div>
+</header>
+
 <main>
+
 <div class="stats">
-  <div class="stat"><div id="mWorkers" class="n">0</div><div class="t">कुल Workers</div></div>
-  <div class="stat"><div id="mPresent" class="n">0</div><div class="t">आज Present</div></div>
-  <div class="stat face"><div><b>Face Recognition</b><div class="t">Auto पहचान</div></div><div id="mFace" class="pill">Checking…</div></div>
+  <div class="stat">
+    <div id="mWorkers" class="n">0</div>
+    <div class="t">कुल Workers</div>
+  </div>
+
+  <div class="stat">
+    <div id="mPresent" class="n">0</div>
+    <div class="t">आज Present</div>
+  </div>
+
+  <div class="stat face">
+    <div>
+      <b>Face Recognition</b>
+      <div class="t">Auto पहचान</div>
+    </div>
+    <div id="mFace" class="pill">Checking...</div>
+  </div>
 </div>
 
 <section id="att" class="panel active">
+
 <div class="desktop-row">
-  <div class="card">
-    <h2 class="section-title">📸 Attendance फोटो</h2><div class="section-sub">Worker का चेहरा साफ दिखे ऐसा live फोटो लें।</div>
-    <div class="camera-shell">
-      <video id="attVideo" class="camera mirror" autoplay playsinline muted></video>
-      <div id="attPlace" class="camera-placeholder"><div><b>Camera शुरू करें</b>नीचे Start Camera दबाएँ और permission Allow करें।</div></div>
-      <canvas id="attCanvas" hidden></canvas>
-      <div id="attBadge" class="photo-badge">✓ फोटो तैयार</div>
-      <div class="camera-actions"><button class="switch" onclick="toggleCamera('att')" aria-label="Camera switch">🔄</button><button class="shutter" onclick="capture('att')" aria-label="Photo capture"></button><button class="switch" onclick="startCam('att')" aria-label="Camera start">▶</button></div>
-    </div>
-    <div id="attPreviewWrap" class="preview-wrap"><img id="attPreview" alt="Attendance preview"><div class="preview-actions"><button class="ghost" style="flex:1" onclick="retake('att')">↩ फिर फोटो लें</button></div></div>
-  </div>
-  <div class="card">
-    <h2 class="section-title">✅ Attendance लगाएँ</h2><div class="section-sub">Worker चुनकर attendance करें या face recognition इस्तेमाल करें।</div>
-    <label for="workerSelect">Worker</label><select id="workerSelect"></select>
-    <div id="selectedWorker" class="quick-worker"></div>
-    <div class="action-grid"><button class="success" onclick="manualAttendance()">✓ Attendance</button><button class="warn" onclick="autoAttendance()">🙂 Face पहचानें</button></div>
-    <div id="attMsg" class="status">पहले live फोटो लें।</div>
-    <div class="hint">नोट: मोबाइल camera सामान्यतः HTTPS या localhost पर ही permission देता है। LAN IP पर खोलने पर browser camera रोक सकता है।</div>
+
+<div class="card">
+<h2 class="section-title">📸 Attendance फोटो</h2>
+<div class="section-sub">Worker का साफ live photo लें।</div>
+
+<div class="camera-shell">
+  <video id="attVideo" class="camera mirror" autoplay playsinline muted></video>
+  <div id="attPlace" class="camera-placeholder">Camera शुरू करें</div>
+  <canvas id="attCanvas" hidden></canvas>
+  <div id="attBadge" class="photo-badge">✓ फोटो तैयार</div>
+
+  <div class="camera-actions">
+    <button class="switch" onclick="toggleCamera('att')">🔄</button>
+    <button class="shutter" onclick="capture('att')"></button>
+    <button class="switch" onclick="startCam('att')">▶</button>
   </div>
 </div>
+
+<div id="attPreviewWrap" class="preview-wrap">
+  <img id="attPreview">
+  <button class="ghost full" onclick="retake('att')">↩ फिर फोटो लें</button>
+</div>
+</div>
+
+<div class="card">
+
+<h2 class="section-title">✅ Attendance मोड</h2>
+
+<div class="section-sub">
+50 मीटर के अंदर होने पर ही attendance लगेगी।
+</div>
+
+<div class="mode-grid">
+  <button id="manualModeBtn" class="mode-btn active" onclick="setMode('manual')">
+    👤 Manual
+  </button>
+
+  <button id="autoModeBtn" class="mode-btn" onclick="setMode('auto')">
+    🙂 Auto Face
+  </button>
+</div>
+
+<div id="manualBox">
+  <label>Worker</label>
+  <select id="workerSelect"></select>
+  <div id="selectedWorker" class="quick-worker"></div>
+
+  <button class="success full" onclick="manualAttendance()">
+    ✓ Manual Attendance
+  </button>
+</div>
+
+<div id="autoBox" class="hidden">
+  <div class="status">
+    Face मजबूत match होने और location सही होने पर ही attendance लगेगी।
+  </div>
+
+  <button class="warn full" onclick="autoAttendance()">
+    🙂 Face से पहचानें
+  </button>
+</div>
+
+<div id="attMsg" class="status">
+पहले live फोटो लें।
+</div>
+
+</div>
+</div>
+
 </section>
 
 <section id="reg" class="panel">
+
 <div class="desktop-row">
-  <div class="card">
-    <h2 class="section-title">🧑 Worker फोटो</h2><div class="section-sub">Registration के लिए सामने से साफ फोटो लें।</div>
-    <div class="camera-shell">
-      <video id="regVideo" class="camera mirror" autoplay playsinline muted></video>
-      <div id="regPlace" class="camera-placeholder"><div><b>Camera शुरू करें</b>नीचे Start Camera दबाएँ और permission Allow करें।</div></div>
-      <canvas id="regCanvas" hidden></canvas>
-      <div id="regBadge" class="photo-badge">✓ फोटो तैयार</div>
-      <div class="camera-actions"><button class="switch" onclick="toggleCamera('reg')">🔄</button><button class="shutter" onclick="capture('reg')"></button><button class="switch" onclick="startCam('reg')">▶</button></div>
-    </div>
-    <div id="regPreviewWrap" class="preview-wrap"><img id="regPreview" alt="Registration preview"><div class="preview-actions"><button class="ghost" style="flex:1" onclick="retake('reg')">↩ फिर फोटो लें</button></div></div>
-  </div>
-  <div class="card">
-    <h2 class="section-title">➕ नया Worker</h2><div class="section-sub">Worker की basic जानकारी भरें।</div>
-    <label for="workerCode">Worker ID *</label><input id="workerCode" autocomplete="off" placeholder="जैसे W001">
-    <label for="workerName">नाम *</label><input id="workerName" autocomplete="name" placeholder="पूरा नाम">
-    <label for="workerDept">Department / Site</label><input id="workerDept" autocomplete="organization" placeholder="जैसे Site A">
-    <button class="success full" onclick="registerWorker()">Worker Save करें</button>
-    <div id="regMsg" class="status">फोटो में सिर्फ एक worker का चेहरा साफ रखें।</div>
-  </div>
+
+<div class="card">
+
+<h2 class="section-title">🧑 Worker फोटो</h2>
+
+<div class="camera-shell">
+
+<video id="regVideo" class="camera mirror" autoplay playsinline muted></video>
+
+<div id="regPlace" class="camera-placeholder">
+Camera शुरू करें
 </div>
+
+<canvas id="regCanvas" hidden></canvas>
+
+<div id="regBadge" class="photo-badge">
+✓ फोटो तैयार
+</div>
+
+<div class="camera-actions">
+<button class="switch" onclick="toggleCamera('reg')">🔄</button>
+<button class="shutter" onclick="capture('reg')"></button>
+<button class="switch" onclick="startCam('reg')">▶</button>
+</div>
+
+</div>
+
+<div id="regPreviewWrap" class="preview-wrap">
+<img id="regPreview">
+<button class="ghost full" onclick="retake('reg')">
+↩ फिर फोटो लें
+</button>
+</div>
+
+</div>
+
+<div class="card">
+
+<h2 class="section-title">➕ नया Worker</h2>
+
+<label>Worker ID *</label>
+<input id="workerCode" placeholder="W001">
+
+<label>नाम *</label>
+<input id="workerName" placeholder="पूरा नाम">
+
+<label>Department / Site</label>
+<input id="workerDept" placeholder="Site A">
+
+<button class="success full" onclick="registerWorker()">
+Worker Save करें
+</button>
+
+<div id="regMsg" class="status">
+फोटो में सिर्फ एक worker का चेहरा रखें।
+</div>
+
+</div>
+</div>
+
 </section>
 
 <section id="report" class="panel">
-  <div class="card">
-    <h2 class="section-title">📋 Attendance Report</h2><div class="section-sub">दिन के हिसाब से attendance देखें और CSV निकालें।</div>
-    <div class="report-top"><div><label for="reportDate" style="margin-top:0">तारीख</label><input id="reportDate" type="date"></div><button onclick="loadReport()">Filter</button></div>
-    <a class="export full" href="/api/export.csv">⬇ CSV Export</a>
-    <div id="records" class="records"></div>
-  </div>
+
+<div class="card">
+
+<h2 class="section-title">📋 Attendance Report</h2>
+
+<label>तारीख</label>
+<input id="reportDate" type="date">
+
+<button class="full" onclick="loadReport()">
+Filter
+</button>
+
+<a class="btn full"
+href="/api/export.csv"
+style="display:block;text-align:center;text-decoration:none">
+⬇ CSV Export
+</a>
+
+<div id="records" class="records"></div>
+
+</div>
+
 </section>
+
 </main>
 
-<nav class="bottom-nav" aria-label="मुख्य navigation">
-  <button class="navbtn active" data-tab="att"><span>📸</span>Attendance</button>
-  <button class="navbtn" data-tab="reg"><span>➕</span>Worker</button>
-  <button class="navbtn" data-tab="report"><span>📋</span>Report</button>
+<nav class="bottom-nav">
+
+<button class="navbtn active" data-tab="att">
+📸 Attendance
+</button>
+
+<button class="navbtn" data-tab="reg">
+➕ Worker
+</button>
+
+<button class="navbtn" data-tab="report">
+📋 Report
+</button>
+
 </nav>
+
 </div>
+
 <script>
-const state={photos:{},streams:{},facing:{att:'user',reg:'user'},workers:[]};
+
+const state={
+  photos:{},
+  streams:{},
+  facing:{att:'user',reg:'user'},
+  workers:[],
+  mode:'manual'
+};
+
 const $=id=>document.getElementById(id);
-function setMsg(id,text,type='info'){const e=$(id);e.textContent=text;e.className='status '+(type==='ok'?'ok':type==='err'?'err':'')}
-async function api(url,opt={}){const r=await fetch(url,opt);let j;try{j=await r.json()}catch{j={detail:'Server error'}}if(!r.ok)throw new Error(j.detail||'Error');return j}
-function stopStream(key){const s=state.streams[key];if(s){s.getTracks().forEach(t=>t.stop());delete state.streams[key]}}
-async function startCam(key){
-  if(!navigator.mediaDevices?.getUserMedia){setMsg(key+'Msg','इस browser में camera API उपलब्ध नहीं है। HTTPS पर app खोलें।','err');return}
-  stopStream(key);
+
+function setMsg(id,text,type='info'){
+  const e=$(id);
+  e.textContent=text;
+  e.className='status '+(
+    type==='ok'?'ok':
+    type==='err'?'err':''
+  );
+}
+
+async function api(url,opt={}){
+  const r=await fetch(url,opt);
+
+  let j;
+
   try{
+    j=await r.json();
+  }catch{
+    j={detail:'Server error'};
+  }
+
+  if(!r.ok){
+    throw new Error(j.detail||'Error');
+  }
+
+  return j;
+}
+
+function stopStream(key){
+  const s=state.streams[key];
+
+  if(s){
+    s.getTracks().forEach(t=>t.stop());
+    delete state.streams[key];
+  }
+}
+
+async function startCam(key){
+
+  if(!navigator.mediaDevices?.getUserMedia){
+    setMsg(
+      key+'Msg',
+      'Camera उपलब्ध नहीं है। HTTPS पर app खोलें।',
+      'err'
+    );
+    return;
+  }
+
+  stopStream(key);
+
+  try{
+
     const facingMode=state.facing[key];
-    const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facingMode},width:{ideal:1280},height:{ideal:960}},audio:false});
-    state.streams[key]=s;const v=$(key+'Video');v.srcObject=s;v.classList.toggle('mirror',facingMode==='user');$(key+'Place').style.display='none';await v.play();
-  }catch(e){setMsg(key+'Msg','Camera नहीं खुला: permission Allow करें। '+e.message,'err')}
+
+    const s=await navigator.mediaDevices.getUserMedia({
+      video:{
+        facingMode:{ideal:facingMode},
+        width:{ideal:1280},
+        height:{ideal:960}
+      },
+      audio:false
+    });
+
+    state.streams[key]=s;
+
+    const v=$(key+'Video');
+
+    v.srcObject=s;
+
+    v.classList.toggle(
+      'mirror',
+      facingMode==='user'
+    );
+
+    $(key+'Place').style.display='none';
+
+    await v.play();
+
+  }catch(e){
+
+    setMsg(
+      key+'Msg',
+      'Camera permission Allow करें।',
+      'err'
+    );
+
+  }
 }
-async function toggleCamera(key){state.facing[key]=state.facing[key]==='user'?'environment':'user';await startCam(key)}
+
+async function toggleCamera(key){
+
+  state.facing[key]=
+    state.facing[key]==='user'
+      ?'environment'
+      :'user';
+
+  await startCam(key);
+}
+
 function capture(key){
-  const v=$(key+'Video'),c=$(key+'Canvas');if(!v.videoWidth){setMsg(key+'Msg','पहले camera शुरू करें।','err');return}
-  c.width=v.videoWidth;c.height=v.videoHeight;const ctx=c.getContext('2d');
-  if(state.facing[key]==='user'){ctx.translate(c.width,0);ctx.scale(-1,1)}
-  ctx.drawImage(v,0,0,c.width,c.height);const d=c.toDataURL('image/jpeg',.82);state.photos[key]=d;
-  $(key+'Preview').src=d;$(key+'PreviewWrap').style.display='block';$(key+'Badge').style.display='block';setMsg(key+'Msg','फोटो तैयार है। अब नीचे action करें।','ok');
+
+  const v=$(key+'Video');
+  const c=$(key+'Canvas');
+
+  if(!v.videoWidth){
+    setMsg(
+      key+'Msg',
+      'पहले camera शुरू करें।',
+      'err'
+    );
+    return;
+  }
+
+  c.width=v.videoWidth;
+  c.height=v.videoHeight;
+
+  const ctx=c.getContext('2d');
+
+  if(state.facing[key]==='user'){
+    ctx.translate(c.width,0);
+    ctx.scale(-1,1);
+  }
+
+  ctx.drawImage(
+    v,
+    0,
+    0,
+    c.width,
+    c.height
+  );
+
+  state.photos[key]=
+    c.toDataURL(
+      'image/jpeg',
+      .82
+    );
+
+  $(key+'Preview').src=
+    state.photos[key];
+
+  $(key+'PreviewWrap').style.display='block';
+
+  $(key+'Badge').style.display='block';
+
+  setMsg(
+    key+'Msg',
+    'फोटो तैयार है।',
+    'ok'
+  );
 }
-function retake(key){state.photos[key]=null;$(key+'PreviewWrap').style.display='none';$(key+'Badge').style.display='none';setMsg(key+'Msg','नया live फोटो लें।','info')}
-function initials(name=''){return name.trim().split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'W'}
-function selectedWorkerCard(){const id=+$('workerSelect').value,w=state.workers.find(x=>x.id===id);$('selectedWorker').innerHTML=w?`<div class="avatar">${initials(w.name)}</div><div class="meta"><b>${escapeHtml(w.name)}</b><small>${escapeHtml(w.worker_code)}${w.department?' • '+escapeHtml(w.department):''}</small></div>`:''}
-function escapeHtml(s=''){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-async function refresh(){
-  try{const [s,ws]=await Promise.all([api('/api/status'),api('/api/workers')]);$('mWorkers').textContent=s.workers;$('mPresent').textContent=s.present_today;$('mFace').textContent=s.face_recognition_ready?'Ready ✓':'Manual mode';$('mFace').className='pill '+(s.face_recognition_ready?'ok':'');if($('mStorage')){$('mStorage').textContent=s.storage==='supabase'?'Permanent ✓':(s.storage==='supabase_error'?'Supabase Error':'Local only');$('mStorage').className='pill '+(s.storage==='supabase'?'ok':'');}state.workers=ws;$('workerSelect').innerHTML=ws.length?ws.map(w=>`<option value="${w.id}">${escapeHtml(w.worker_code)} — ${escapeHtml(w.name)}</option>`).join(''):'<option value="">पहले worker register करें</option>';selectedWorkerCard()}catch(e){setMsg('attMsg','Server से connection नहीं हो रहा: '+e.message,'err')}
+
+function retake(key){
+
+  state.photos[key]=null;
+
+  $(key+'PreviewWrap').style.display='none';
+
+  $(key+'Badge').style.display='none';
+
+  setMsg(
+    key+'Msg',
+    'नया live फोटो लें।'
+  );
 }
-async function registerWorker(){try{if(!state.photos.reg)throw new Error('Registration फोटो लें।');const j=await api('/api/workers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({worker_code:$('workerCode').value,name:$('workerName').value,department:$('workerDept').value,photo:state.photos.reg})});setMsg('regMsg',j.face_saved?'Worker save हो गया और face template तैयार है।':'Worker save हो गया। Face model install होने पर auto recognition चलेगा।','ok');$('workerCode').value=$('workerName').value=$('workerDept').value='';retake('reg');await refresh()}catch(e){setMsg('regMsg',e.message,'err')}}
-async function manualAttendance(){try{if(!state.photos.att)throw new Error('Attendance फोटो लें।');if(!$('workerSelect').value)throw new Error('Worker चुनें।');const j=await api('/api/attendance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({worker_id:+$('workerSelect').value,photo:state.photos.att})});setMsg('attMsg',`${j.worker} की attendance ${j.time} पर लग गई।`,'ok');navigator.vibrate?.(80);retake('att');await refresh()}catch(e){setMsg('attMsg',e.message,'err')}}
-async function autoAttendance(){try{if(!state.photos.att)throw new Error('Attendance फोटो लें।');const j=await api('/api/recognize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photo:state.photos.att})});setMsg('attMsg',`${j.worker} पहचान लिया गया — ${j.time}. Match ${Math.round((j.confidence||0)*100)}%`,'ok');navigator.vibrate?.(80);retake('att');await refresh()}catch(e){setMsg('attMsg',e.message,'err')}}
-async function loadReport(){try{const q=$('reportDate').value?'?date='+encodeURIComponent($('reportDate').value):'';const rows=await api('/api/attendance'+q);$('records').innerHTML=rows.length?rows.map(r=>`<div class="record"><div class="record-head"><div class="record-name">${escapeHtml(r.name)}</div><div class="record-time">${escapeHtml(r.attendance_time)}</div></div><div class="record-meta"><span>${escapeHtml(r.worker_code)}</span><span>•</span><span>${escapeHtml(r.department||'No Site')}</span><span>•</span><span>${escapeHtml(r.attendance_date)}</span><span>•</span><span>${r.method==='face_recognition'?'Face':'Photo'}</span>${r.confidence?`<span>• ${Math.round(r.confidence*100)}%</span>`:''}</div></div>`).join(''):'<div class="empty">इस तारीख का कोई record नहीं है।</div>'}catch(e){$('records').innerHTML='<div class="empty">Report load नहीं हुई।</div>'}}
-function switchTab(tab){document.querySelectorAll('.navbtn').forEach(x=>x.classList.toggle('active',x.dataset.tab===tab));document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('active',x.id===tab));window.scrollTo({top:0,behavior:'smooth'});if(tab==='report')loadReport()}
-document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));$('workerSelect').addEventListener('change',selectedWorkerCard);
-let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBtn').style.display='block'});$('installBtn').addEventListener('click',async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBtn').style.display='none'});
-if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/static/sw.js').catch(()=>{}))}
-window.addEventListener('pagehide',()=>{stopStream('att');stopStream('reg')});
-refresh();loadReport();
-</script>
-</body></html>
+
+function escapeHtml(s=''){
+  return String(s).replace(
+    /[&<>'"]/g,
+    c=>({
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;',
+      "'":'&#39;',
+      '"':'&quot;'
+    }[c])
+  );
+}
+
+function selectedWorkerCard(){
+
+  const id=
+    +$('workerSelect').value;
+
+  const w=
+    state.workers.find(
+      x=>x.id===id
+    );
+
+  $('selectedWorker').innerHTML=
+    w
+      ? `<b>${
