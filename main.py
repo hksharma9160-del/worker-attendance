@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.staticfiles import StaticFiles 
 from pydantic import BaseModel
 from pathlib import Path
 from datetime import datetime
@@ -349,19 +349,47 @@ def recognize(payload: RecognizeIn):
         rows = sb_data(supabase.table("workers").select("*").not_.is_("embedding", "null").execute())
     else:
         c = conn(); rows = [dict(r) for r in c.execute("SELECT * FROM workers WHERE embedding IS NOT NULL").fetchall()]; c.close()
-    best = None
+matches = []
     for r in rows:
         try:
             stored = r["embedding"] if isinstance(r["embedding"], list) else json.loads(r["embedding"])
             score = cosine(emb, stored)
+            matches.append((score, r))
         except Exception:
             continue
-        if best is None or score > best[0]:
-            best = (score, r)
-    threshold = 0.45
-    if best is None or best[0] < threshold:
-        raise HTTPException(404, "चेहरा किसी registered worker से match नहीं हुआ।")
-    return mark_attendance(best[1]["id"], payload.photo, "face_recognition", round(best[0], 4))
+
+    matches.sort(key=lambda x: x[0], reverse=True)
+
+    if not matches:
+        raise HTTPException(
+            404,
+            "कोई usable registered face template नहीं मिला। Attendance नहीं लगी।"
+        )
+
+    best_score, best_worker = matches[0]
+    second_score = matches[1][0] if len(matches) > 1 else None
+
+    threshold = 0.58
+    min_margin = 0.08
+
+    if best_score < threshold:
+        raise HTTPException(
+            404,
+            "चेहरा किसी registered worker से भरोसेमंद तरीके से match नहीं हुआ। Attendance नहीं लगी।"
+        )
+
+    if second_score is not None and (best_score - second_score) < min_margin:
+        raise HTTPException(
+            409,
+            "Face match ambiguous है। साफ सामने से फोटो लें। Attendance नहीं लगी।"
+        )
+
+    return mark_attendance(
+        best_worker["id"],
+        payload.photo,
+        "face_recognition",
+        round(best_score, 4)
+    )
 
 
 @app.get("/api/attendance")
