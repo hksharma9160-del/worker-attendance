@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
-import os, sqlite3, base64, uuid, io, csv, json
+import os, sqlite3, base64, uuid, io, csv, json, math
 import numpy as np
 import cv2
 
@@ -25,7 +25,9 @@ DB = DATA / "attendance.db"
 YUNET = MODELS / "face_detection_yunet_2023mar.onnx"
 SFACE = MODELS / "face_recognition_sface_2021dec.onnx"
 IST = ZoneInfo("Asia/Kolkata")
-
+SITE_LAT = 26.924034
+SITE_LON = 75.813471
+SITE_RADIUS_METERS = 50
 for p in (STATIC, DATA, WORKER_PHOTOS, ATT_PHOTOS, MODELS):
     p.mkdir(parents=True, exist_ok=True)
 
@@ -103,10 +105,15 @@ class WorkerIn(BaseModel):
 class AttendanceIn(BaseModel):
     worker_id: int
     photo: str
+    latitude: float
+    longitude: float
 
 
 class RecognizeIn(BaseModel):
     photo: str
+    latitude: float
+    longitude: float
+    
 
 
 def decode_photo(data_url: str):
@@ -182,8 +189,34 @@ def cosine(a, b):
     a = np.asarray(a, dtype=np.float32); b = np.asarray(b, dtype=np.float32)
     d = np.linalg.norm(a) * np.linalg.norm(b)
     return float(np.dot(a, b) / d) if d else -1.0
+def distance_meters(lat1, lon1, lat2, lon2):
+    r = 6371000
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
 
+    a = (
+        math.sin(dp / 2) ** 2
+        + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return r * c
+def check_site_location(latitude, longitude):
+    distance = distance_meters(
+        latitude,
+        longitude,
+        SITE_LAT,
+        SITE_LON
+    )
 
+    if distance > SITE_RADIUS_METERS:
+        raise HTTPException(
+            403,
+            f"आप attendance location से {round(distance)} मीटर दूर हैं। Attendance नहीं लगी।"
+        )
+
+    return round(distance, 1)
 def sb_data(resp):
     return getattr(resp, "data", None) or []
 
@@ -334,11 +367,13 @@ def mark_attendance(worker_id: int, photo: str, method: str, confidence=None):
 
 @app.post("/api/attendance")
 def attendance(payload: AttendanceIn):
+    check_site_location(payload.latitude, payload.longitude)
     return mark_attendance(payload.worker_id, payload.photo, "manual_photo")
 
 
 @app.post("/api/recognize")
 def recognize(payload: RecognizeIn):
+    check_site_location(payload.latitude, payload.longitude)
     if not face_models_ready():
         raise HTTPException(503, "Face recognition models install नहीं हैं। पहले manual attendance इस्तेमाल करें।")
     _, img = decode_photo(payload.photo)
