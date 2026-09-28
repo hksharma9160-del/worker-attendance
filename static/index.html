@@ -639,4 +639,490 @@ function selectedWorkerCard(){
 
   $('selectedWorker').innerHTML=
     w
-      ? `<b>${
+      ? `<b>${escapeHtml(w.name)}</b><br>
+         <small>${escapeHtml(w.worker_code)}
+         ${w.department?' • '+escapeHtml(w.department):''}
+         </small>`
+      : '';
+}
+
+function setMode(mode){
+
+  state.mode=mode;
+
+  const manual=
+    mode==='manual';
+
+  $('manualModeBtn')
+    .classList.toggle(
+      'active',
+      manual
+    );
+
+  $('autoModeBtn')
+    .classList.toggle(
+      'active',
+      !manual
+    );
+
+  $('manualBox')
+    .classList.toggle(
+      'hidden',
+      !manual
+    );
+
+  $('autoBox')
+    .classList.toggle(
+      'hidden',
+      manual
+    );
+}
+
+function getLocation(){
+
+  return new Promise(
+    (resolve,reject)=>{
+
+      if(!navigator.geolocation){
+
+        reject(
+          new Error(
+            'इस मोबाइल में location उपलब्ध नहीं है।'
+          )
+        );
+
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+
+        p=>resolve({
+          latitude:p.coords.latitude,
+          longitude:p.coords.longitude
+        }),
+
+        ()=>reject(
+          new Error(
+            'Location permission Allow करें।'
+          )
+        ),
+
+        {
+          enableHighAccuracy:true,
+          timeout:15000,
+          maximumAge:0
+        }
+
+      );
+    }
+  );
+}
+
+async function refresh(){
+
+  try{
+
+    const [s,ws]=
+      await Promise.all([
+        api('/api/status'),
+        api('/api/workers')
+      ]);
+
+    $('mWorkers').textContent=
+      s.workers;
+
+    $('mPresent').textContent=
+      s.present_today;
+
+    $('mFace').textContent=
+      s.face_recognition_ready
+        ?'Ready ✓'
+        :'Not Ready';
+
+    $('mFace').className=
+      'pill '+
+      (
+        s.face_recognition_ready
+          ?'ok'
+          :''
+      );
+
+    state.workers=ws;
+
+    $('workerSelect').innerHTML=
+      ws.length
+        ?ws.map(
+          w=>
+          `<option value="${w.id}">
+          ${escapeHtml(w.worker_code)}
+          — ${escapeHtml(w.name)}
+          </option>`
+        ).join('')
+        :'<option value="">पहले worker register करें</option>';
+
+    selectedWorkerCard();
+
+  }catch(e){
+
+    setMsg(
+      'attMsg',
+      'Server connection error: '+e.message,
+      'err'
+    );
+
+  }
+}
+
+async function registerWorker(){
+
+  try{
+
+    if(!state.photos.reg){
+      throw new Error(
+        'Registration फोटो लें।'
+      );
+    }
+
+    const j=
+      await api(
+        '/api/workers',
+        {
+          method:'POST',
+
+          headers:{
+            'Content-Type':
+            'application/json'
+          },
+
+          body:JSON.stringify({
+            worker_code:
+              $('workerCode').value,
+
+            name:
+              $('workerName').value,
+
+            department:
+              $('workerDept').value,
+
+            photo:
+              state.photos.reg
+          })
+        }
+      );
+
+    setMsg(
+      'regMsg',
+      j.face_saved
+        ?'Worker save हो गया और face template तैयार है।'
+        :'Worker save हो गया।',
+      'ok'
+    );
+
+    $('workerCode').value='';
+    $('workerName').value='';
+    $('workerDept').value='';
+
+    retake('reg');
+
+    await refresh();
+
+  }catch(e){
+
+    setMsg(
+      'regMsg',
+      e.message,
+      'err'
+    );
+
+  }
+}
+
+async function manualAttendance(){
+
+  try{
+
+    if(!state.photos.att){
+      throw new Error(
+        'Attendance फोटो लें।'
+      );
+    }
+
+    if(!$('workerSelect').value){
+      throw new Error(
+        'Worker चुनें।'
+      );
+    }
+
+    setMsg(
+      'attMsg',
+      'Location check हो रही है...'
+    );
+
+    const loc=
+      await getLocation();
+
+    const j=
+      await api(
+        '/api/attendance',
+        {
+          method:'POST',
+
+          headers:{
+            'Content-Type':
+            'application/json'
+          },
+
+          body:JSON.stringify({
+            worker_id:
+              +$('workerSelect').value,
+
+            photo:
+              state.photos.att,
+
+            latitude:
+              loc.latitude,
+
+            longitude:
+              loc.longitude
+          })
+        }
+      );
+
+    setMsg(
+      'attMsg',
+      `${j.worker} की attendance ${j.time} पर लग गई।`,
+      'ok'
+    );
+
+    navigator.vibrate?.(80);
+
+    retake('att');
+
+    await refresh();
+
+  }catch(e){
+
+    setMsg(
+      'attMsg',
+      e.message,
+      'err'
+    );
+
+  }
+}
+
+async function autoAttendance(){
+
+  try{
+
+    if(!state.photos.att){
+      throw new Error(
+        'Attendance फोटो लें।'
+      );
+    }
+
+    setMsg(
+      'attMsg',
+      'Location और face check हो रहे हैं...'
+    );
+
+    const loc=
+      await getLocation();
+
+    const j=
+      await api(
+        '/api/recognize',
+        {
+          method:'POST',
+
+          headers:{
+            'Content-Type':
+            'application/json'
+          },
+
+          body:JSON.stringify({
+            photo:
+              state.photos.att,
+
+            latitude:
+              loc.latitude,
+
+            longitude:
+              loc.longitude
+          })
+        }
+      );
+
+    setMsg(
+      'attMsg',
+      `${j.worker} पहचान लिया गया — Match ${Math.round((j.confidence||0)*100)}%`,
+      'ok'
+    );
+
+    navigator.vibrate?.(80);
+
+    retake('att');
+
+    await refresh();
+
+  }catch(e){
+
+    setMsg(
+      'attMsg',
+      e.message,
+      'err'
+    );
+
+  }
+}
+
+async function loadReport(){
+
+  try{
+
+    const q=
+      $('reportDate').value
+        ?'?date='+
+          encodeURIComponent(
+            $('reportDate').value
+          )
+        :'';
+
+    const rows=
+      await api(
+        '/api/attendance'+q
+      );
+
+    $('records').innerHTML=
+      rows.length
+
+      ?rows.map(
+        r=>
+        `<div class="record">
+
+          <div class="record-head">
+
+            <div class="record-name">
+              ${escapeHtml(r.name)}
+            </div>
+
+            <div class="record-time">
+              ${escapeHtml(r.attendance_time)}
+            </div>
+
+          </div>
+
+          <div class="record-meta">
+
+            ${escapeHtml(r.worker_code)}
+            •
+            ${escapeHtml(r.attendance_date)}
+            •
+            ${
+              r.method==='face_recognition'
+                ?'Face'
+                :'Manual'
+            }
+
+            ${
+              r.confidence
+              ?' • '+Math.round(
+                r.confidence*100
+              )+'%'
+              :''
+            }
+
+          </div>
+
+        </div>`
+      ).join('')
+
+      :'<div class="record">कोई record नहीं है।</div>';
+
+  }catch(e){
+
+    $('records').innerHTML=
+      '<div class="record">Report load नहीं हुई।</div>';
+
+  }
+}
+
+function switchTab(tab){
+
+  document
+    .querySelectorAll('.navbtn')
+    .forEach(
+      x=>
+      x.classList.toggle(
+        'active',
+        x.dataset.tab===tab
+      )
+    );
+
+  document
+    .querySelectorAll('.panel')
+    .forEach(
+      x=>
+      x.classList.toggle(
+        'active',
+        x.id===tab
+      )
+    );
+
+  if(tab==='report'){
+    loadReport();
+  }
+}
+
+document
+.querySelectorAll('.navbtn')
+.forEach(
+  b=>
+  b.addEventListener(
+    'click',
+    ()=>switchTab(
+      b.dataset.tab
+    )
+  )
+);
+
+$('workerSelect')
+.addEventListener(
+  'change',
+  selectedWorkerCard
+);
+
+if('serviceWorker' in navigator){
+
+  window.addEventListener(
+    'load',
+    ()=>{
+      navigator
+        .serviceWorker
+        .register(
+          '/static/sw.js'
+        )
+        .catch(()=>{});
+    }
+  );
+
+}
+
+window.addEventListener(
+  'pagehide',
+  ()=>{
+    stopStream('att');
+    stopStream('reg');
+  }
+);
+
+setMode('manual');
+
+refresh();
+
+loadReport();
+
+</script>
+
+</body>
+</html>
