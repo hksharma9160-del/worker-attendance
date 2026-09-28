@@ -384,7 +384,7 @@ def recognize(payload: RecognizeIn):
         rows = sb_data(supabase.table("workers").select("*").not_.is_("embedding", "null").execute())
     else:
         c = conn(); rows = [dict(r) for r in c.execute("SELECT * FROM workers WHERE embedding IS NOT NULL").fetchall()]; c.close()
-  matches = []
+    matches = []
     for r in rows:
         try:
             stored = r["embedding"] if isinstance(r["embedding"], list) else json.loads(r["embedding"])
