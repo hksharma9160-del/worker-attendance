@@ -78,7 +78,7 @@ body{margin:0;font-family:system-ui;background:#f1f5f9;color:#0f172a}.app{max-wi
 </nav>
 
 <script>
-const state={photos:{},streams:{},facing:{att:'user',reg:'user'},workers:'};
+const state={photos:{},streams:{},facing:{att:'user',reg:'user'},workers:[]}
 const $=x=>document.getElementById(x);
 function msg(id,t,type=''){const e=$(id);e.textContent=t;e.className='msg '+type}
 async function api(u,o={}){const r=await fetch(u,o);let j;try{j=await r.json()}catch{j={detail:'Server error'}}if(!r.ok)throw Error(j.detail||'Error');return j}
