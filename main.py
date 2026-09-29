@@ -495,18 +495,28 @@ def recognize(payload: RecognizeIn):
 def attendance_list(date: str | None = None):
     if USE_SUPABASE and supabase:
         try:
-            q = supabase.table("attendance").select("id,worker_id,attendance_date,attendance_time,method,confidence,workers(worker_code,name,department)")
+            q = supabase.table("attendance").select(
+    "id,worker_id,attendance_date,attendance_time,out_time,method,out_method,confidence,out_confidence,workers(worker_code,name,department)"
+)
             if date:
                 q = q.eq("attendance_date", date)
             rows = sb_data(q.order("attendance_date", desc=True).order("attendance_time", desc=True).limit(500).execute())
             out = []
             for r in rows:
                 w = r.get("workers") or {}
-                out.append({
-                    "id": r.get("id"), "worker_code": w.get("worker_code"), "name": w.get("name"),
-                    "department": w.get("department"), "attendance_date": r.get("attendance_date"),
-                    "attendance_time": r.get("attendance_time"), "method": r.get("method"), "confidence": r.get("confidence")
-                })
+              out.append({
+    "id": r.get("id"),
+    "worker_code": w.get("worker_code"),
+    "name": w.get("name"),
+    "department": w.get("department"),
+    "attendance_date": r.get("attendance_date"),
+    "attendance_time": r.get("attendance_time"),
+    "out_time": r.get("out_time"),
+    "method": r.get("method"),
+    "out_method": r.get("out_method"),
+    "confidence": r.get("confidence"),
+    "out_confidence": r.get("out_confidence")
+})
             return out
         except Exception as e:
             raise HTTPException(500, f"Attendance list नहीं मिली: {str(e)[:220]}")
@@ -526,8 +536,30 @@ def attendance_list(date: str | None = None):
 def export_csv():
     rows = attendance_list(None)
     sio = io.StringIO(); writer = csv.writer(sio)
-    writer.writerow(["Worker ID", "Name", "Department", "Date", "Time", "Method", "Confidence"])
+    writer.writerow([
+    "Worker ID",
+    "Name",
+    "Department",
+    "Date",
+    "IN Time",
+    "OUT Time",
+    "IN Method",
+    "OUT Method",
+    "IN Confidence",
+    "OUT Confidence"
+])
     for r in rows:
-        writer.writerow([r.get("worker_code"), r.get("name"), r.get("department"), r.get("attendance_date"), r.get("attendance_time"), r.get("method"), r.get("confidence")])
+        writer.writerow([
+    r.get("worker_code"),
+    r.get("name"),
+    r.get("department"),
+    r.get("attendance_date"),
+    r.get("attendance_time"),
+    r.get("out_time"),
+    r.get("method"),
+    r.get("out_method"),
+    r.get("confidence"),
+    r.get("out_confidence")
+])
     data = sio.getvalue().encode("utf-8-sig")
     return StreamingResponse(io.BytesIO(data), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=attendance.csv"})
