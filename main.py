@@ -501,7 +501,7 @@ def attendance_list(date: str | None = None):
             if date:
                 q = q.eq("attendance_date", date)
             rows = sb_data(q.order("attendance_date", desc=True).order("attendance_time", desc=True).limit(500).execute())
-              out = []
+            out = []
             for r in rows:
                 w = r.get("workers") or {}
                 out.append({
