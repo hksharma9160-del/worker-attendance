@@ -31,16 +31,7 @@ body{margin:0;font-family:system-ui;background:#f1f5f9;color:#0f172a}.app{max-wi
 </div>
 <div class="card">
 <h2>✅ Attendance Mode</h2>
-<div class="modes">
-<button id="manualModeBtn" class="active" onclick="setMode('manual')">👤 Manual</button>
-<button id="autoModeBtn" class="gray" onclick="setMode('auto')">🙂 Auto Face</button>
-</div>
-<div id="manualBox">
-<label>Worker</label>
-<select id="workerSelect"></select>
-<button class="green" onclick="manualAttendance()">✓ Manual Attendance</button>
-</div>
-<div id="autoBox" class="hidden">
+<div>
 <button class="orange" onclick="autoAttendance()">🙂 Face से पहचानें</button>
 </div>
 <div id="attMsg" class="msg">पहले फोटो लें। Attendance के समय Location permission Allow करें।</div>
@@ -87,7 +78,7 @@ body{margin:0;font-family:system-ui;background:#f1f5f9;color:#0f172a}.app{max-wi
 </nav>
 
 <script>
-const state={photos:{},streams:{},facing:{att:'user',reg:'user'},workers:[],mode:'manual'};
+const state={photos:{},streams:{},facing:{att:'user',reg:'user'},workers:'};
 const $=x=>document.getElementById(x);
 function msg(id,t,type=''){const e=$(id);e.textContent=t;e.className='msg '+type}
 async function api(u,o={}){const r=await fetch(u,o);let j;try{j=await r.json()}catch{j={detail:'Server error'}}if(!r.ok)throw Error(j.detail||'Error');return j}
@@ -95,16 +86,14 @@ function stop(k){if(state.streams[k]){state.streams[k].getTracks().forEach(t=>t.
 async function startCam(k){try{stop(k);const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:state.facing[k]}},audio:false});state.streams[k]=s;$(k+'Video').srcObject=s;$(k+'Video').classList.toggle('mirror',state.facing[k]==='user')}catch(e){msg(k+'Msg','Camera permission Allow करें।','err')}}
 async function toggleCamera(k){state.facing[k]=state.facing[k]==='user'?'environment':'user';await startCam(k)}
 function capture(k){const v=$(k+'Video');if(!v.videoWidth){msg(k+'Msg','पहले camera start करें।','err');return}const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;const x=c.getContext('2d');if(state.facing[k]==='user'){x.translate(c.width,0);x.scale(-1,1)}x.drawImage(v,0,0);state.photos[k]=c.toDataURL('image/jpeg',.82);$(k+'Preview').src=state.photos[k];$(k+'Preview').classList.remove('hidden');msg(k+'Msg','फोटो तैयार है।','ok')}
-function getLocation(){return new Promise((res,rej)=>{if(!navigator.geolocation)return rej(Error('Location उपलब्ध नहीं है।'));navigator.geolocation.getCurrentPosition(p=>res({latitude:p.coords.latitude,longitude:p.coords.longitude}),()=>rej(Error('Location permission Allow करें।')),{enableHighAccuracy:true,timeout:15000,maximumAge:0})})}
-function setMode(m){state.mode=m;const man=m==='manual';$('manualBox').classList.toggle('hidden',!man);$('autoBox').classList.toggle('hidden',man);$('manualModeBtn').className=man?'active':'gray';$('autoModeBtn').className=man?'gray':'active'}
-async function refresh(){try{const [s,w]=await Promise.all([api('/api/status'),api('/api/workers')]);$('mWorkers').textContent=s.workers;$('mPresent').textContent=s.present_today;$('mFace').textContent=s.face_recognition_ready?'Ready ✓':'Not Ready';state.workers=w;$('workerSelect').innerHTML=w.length?w.map(x=>`<option value="${x.id}">${x.worker_code} — ${x.name}</option>`).join(''):'<option value="">पहले worker register करें</option>'}catch(e){msg('attMsg',e.message,'err')}}
+function getLocation(){return new Promise((res,rej)=>{if(!navigator.geolocation)return rej(Error('Location उपलब्ध नहीं है।'));navigator.geolocation.getCurrentPosition(p=>res({latitude:p.coords.latitude,longitude:p.coords.longitude}),()=>rej(Error('Location permission Allow करें।')),{enableHighAccuracy:true,timeout:15000,maximumAge:0})})}   
+async function refresh(){try{const [s,w]=await Promise.all([api('/api/status'),api('/api/workers')]);$('mWorkers').textContent=s.workers;$('mPresent').textContent=s.present_today;$('mFace').textContent=s.face_recognition_ready?'Ready ✓':'Not Ready';state.workers=w}catch(e){msg('attMsg',e.message,'err')}}
 async function registerWorker(){try{if(!state.photos.reg)throw Error('Registration फोटो लें।');const j=await api('/api/workers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({worker_code:$('workerCode').value,name:$('workerName').value,department:$('workerDept').value,photo:state.photos.reg})});msg('regMsg',j.face_saved?'Worker save और face template तैयार।':'Worker save हो गया।','ok');$('workerCode').value=$('workerName').value=$('workerDept').value='';await refresh()}catch(e){msg('regMsg',e.message,'err')}}
-async function manualAttendance(){try{if(!state.photos.att)throw Error('Attendance फोटो लें।');if(!$('workerSelect').value)throw Error('Worker चुनें।');msg('attMsg','Location check हो रही है...');const l=await getLocation();const j=await api('/api/attendance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({worker_id:+$('workerSelect').value,photo:state.photos.att,latitude:l.latitude,longitude:l.longitude})});msg('attMsg',`${j.worker} की attendance ${j.time} पर लग गई।`,'ok');await refresh()}catch(e){msg('attMsg',e.message,'err')}}
 async function autoAttendance(){try{if(!state.photos.att)throw Error('Attendance फोटो लें।');msg('attMsg','Location और face check हो रहे हैं...');const l=await getLocation();const j=await api('/api/recognize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({photo:state.photos.att,latitude:l.latitude,longitude:l.longitude})});msg('attMsg',`${j.worker} पहचान लिया गया — Match ${Math.round((j.confidence||0)*100)}%`,'ok');await refresh()}catch(e){msg('attMsg',e.message,'err')}}
 async function loadReport(){try{const q=$('reportDate').value?'?date='+$('reportDate').value:'';const r=await api('/api/attendance'+q);$('records').innerHTML=r.length?r.map(x=>`<div class="card"><b>${x.name}</b><br>${x.attendance_date} ${x.attendance_time}<br><span class="muted">${x.method==='face_recognition'?'Face':'Manual'}${x.confidence?' • '+Math.round(x.confidence*100)+'%':''}</span></div>`).join(''):'कोई record नहीं है।'}catch(e){$('records').textContent='Report load नहीं हुई।'}}
 function tab(id){document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('show',x.id===id));if(id==='report')loadReport()}
 window.addEventListener('pagehide',()=>{stop('att');stop('reg')});
-setMode('manual');refresh();loadReport();
+refresh();loadReport();
 </script>
 </body>
 </html>
