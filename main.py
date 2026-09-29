@@ -501,22 +501,22 @@ def attendance_list(date: str | None = None):
             if date:
                 q = q.eq("attendance_date", date)
             rows = sb_data(q.order("attendance_date", desc=True).order("attendance_time", desc=True).limit(500).execute())
-            out = []
+              out = []
             for r in rows:
                 w = r.get("workers") or {}
-              out.append({
-    "id": r.get("id"),
-    "worker_code": w.get("worker_code"),
-    "name": w.get("name"),
-    "department": w.get("department"),
-    "attendance_date": r.get("attendance_date"),
-    "attendance_time": r.get("attendance_time"),
-    "out_time": r.get("out_time"),
-    "method": r.get("method"),
-    "out_method": r.get("out_method"),
-    "confidence": r.get("confidence"),
-    "out_confidence": r.get("out_confidence")
-})
+                out.append({
+                    "id": r.get("id"),
+                    "worker_code": w.get("worker_code"),
+                    "name": w.get("name"),
+                    "department": w.get("department"),
+                    "attendance_date": r.get("attendance_date"),
+                    "attendance_time": r.get("attendance_time"),
+                    "out_time": r.get("out_time"),
+                    "method": r.get("method"),
+                    "out_method": r.get("out_method"),
+                    "confidence": r.get("confidence"),
+                    "out_confidence": r.get("out_confidence")
+                })
             return out
         except Exception as e:
             raise HTTPException(500, f"Attendance list नहीं मिली: {str(e)[:220]}")
