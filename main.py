@@ -328,43 +328,107 @@ def get_worker(worker_id: int):
     c = conn(); row = c.execute("SELECT * FROM workers WHERE id=?", (worker_id,)).fetchone(); c.close()
     return dict(row) if row else None
 
-
 def mark_attendance(worker_id: int, photo: str, method: str, confidence=None):
-    data, _ = decode_photo(photo)
     w = get_worker(worker_id)
     if not w:
         raise HTTPException(404, "Worker नहीं मिला।")
-    now = now_ist(); d = now.strftime("%Y-%m-%d"); t = now.strftime("%H:%M:%S")
-    rel = save_photo(data, "attendance", f"{d}_{worker_id}_{uuid.uuid4().hex[:8]}")
+
+    now = now_ist()
+    d = now.strftime("%Y-%m-%d")
+    t = now.strftime("%H:%M:%S")
+
+    # SUPABASE
     if USE_SUPABASE and supabase:
         try:
-            row = {
-                "worker_id": worker_id,
-                "attendance_date": d,
-                "attendance_time": t,
-                "photo_path": rel,
+            existing = sb_data(
+                supabase.table("attendance")
+                .select("*")
+                .eq("worker_id", worker_id)
+                .eq("attendance_date", d)
+                .limit(1)
+                .execute()
+            )
+
+            # पहली फोटो = IN
+            if not existing:
+                data, _ = decode_photo(photo)
+                rel = save_photo(
+                    data,
+                    "attendance",
+                    f"{d}_{worker_id}_IN_{uuid.uuid4().hex[:8]}"
+                )
+
+                row = {
+                    "worker_id": worker_id,
+                    "attendance_date": d,
+                    "attendance_time": t,
+                    "photo_path": rel,
+                    "method": method,
+                    "confidence": confidence,
+                    "created_at": now.isoformat(timespec="seconds"),
+                }
+
+                supabase.table("attendance").insert(row).execute()
+
+                return {
+                    "ok": True,
+                    "worker": w["name"],
+                    "date": d,
+                    "time": t,
+                    "event": "IN",
+                    "method": method,
+                    "confidence": confidence,
+                    "storage": "supabase",
+                }
+
+            row = existing[0]
+
+            # IN और OUT दोनों पहले हो चुके हैं
+            if row.get("out_time"):
+                raise HTTPException(
+                    409,
+                    f"{w['name']} का आज का IN और OUT दोनों पहले ही हो चुका है।"
+                )
+
+            # दूसरी फोटो = OUT
+            data, _ = decode_photo(photo)
+            rel = save_photo(
+                data,
+                "attendance",
+                f"{d}_{worker_id}_OUT_{uuid.uuid4().hex[:8]}"
+            )
+
+            supabase.table("attendance").update({
+                "out_time": t,
+                "out_photo_path": rel,
+                "out_method": method,
+                "out_confidence": confidence,
+                "out_created_at": now.isoformat(timespec="seconds"),
+            }).eq("id", row["id"]).execute()
+
+            return {
+                "ok": True,
+                "worker": w["name"],
+                "date": d,
+                "time": t,
+                "event": "OUT",
                 "method": method,
                 "confidence": confidence,
-                "created_at": now.isoformat(timespec="seconds"),
+                "storage": "supabase",
             }
-            supabase.table("attendance").insert(row).execute()
+
+        except HTTPException:
+            raise
         except Exception as e:
-            msg = str(e)
-            if "duplicate" in msg.lower() or "23505" in msg:
-                raise HTTPException(409, f"{w['name']} की आज की attendance पहले ही लग चुकी है।")
-            raise HTTPException(500, f"Attendance save नहीं हुई: {msg[:220]}")
-        return {"ok": True, "worker": w["name"], "date": d, "time": t, "method": method, "confidence": confidence, "storage": "supabase"}
-    c = conn()
-    try:
-        c.execute("INSERT INTO attendance(worker_id,attendance_date,attendance_time,photo_path,method,confidence,created_at) VALUES(?,?,?,?,?,?,?)",
-                  (worker_id, d, t, rel, method, confidence, now.isoformat(timespec="seconds")))
-        c.commit()
-    except sqlite3.IntegrityError:
-        c.close(); raise HTTPException(409, f"{w['name']} की आज की attendance पहले ही लग चुकी है।")
-    c.close()
-    return {"ok": True, "worker": w["name"], "date": d, "time": t, "method": method, "confidence": confidence, "storage": "local"}
+            raise HTTPException(
+                500,
+                f"Attendance save नहीं हुई: {str(e)[:220]}"
+            )
 
-
+    raise HTTPException(
+        503,
+        "यह IN/OUT system Supabase के साथ चलने के लिए सेट है।"
+    )
 @app.post("/api/attendance")
 def attendance(payload: AttendanceIn):
     check_site_location(payload.latitude, payload.longitude)
